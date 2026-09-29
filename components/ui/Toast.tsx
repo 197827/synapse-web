@@ -7,10 +7,17 @@ export interface Toast {
   id: string;
   message: string;
   type?: ToastType;
+  /** Optional action button rendered inside the toast (e.g. "Stay connected"). */
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
+  /** Optional override for the auto-dismiss delay in ms. */
+  duration?: number;
 }
 
 interface ToastContextType {
-  toast: (message: string, type?: ToastType) => void;
+  toast: (message: string, type?: ToastType, options?: { action?: Toast["action"]; duration?: number }) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -94,6 +101,30 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 <span style={{ color: typeColor, fontWeight: 700 }}>{icon}</span>
                 <span style={{ color: "#eee", wordBreak: "break-word" }}>{t.message}</span>
               </div>
+              {t.action && (
+                <button
+                  onClick={() => {
+                    t.action?.onClick();
+                    removeToast(t.id);
+                  }}
+                  style={{
+                    background: "none",
+                    border: `1px solid ${typeColor}77`,
+                    color: typeColor,
+                    cursor: "pointer",
+                    fontFamily: MONO,
+                    fontSize: 10,
+                    padding: "4px 8px",
+                    marginLeft: 10,
+                    whiteSpace: "nowrap",
+                    transition: "background 0.15s",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = `${typeColor}22`)}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                >
+                  {t.action.label}
+                </button>
+              )}
               <button
                 onClick={() => removeToast(t.id)}
                 aria-label="Dismiss notification"

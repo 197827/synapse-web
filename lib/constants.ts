@@ -50,6 +50,93 @@ export const DIM = "var(--dim)";
 export const MONO = "var(--font-ibm-plex-mono), monospace";
 
 /**
+ * The network passphrase this dashboard is configured to target.
+ *
+ * Used by the wallet layer to detect a mismatch between the connected
+ * wallet's active network and the dashboard's configured network before
+ * allowing a submission. Defaults to Testnet; override via
+ * `NEXT_PUBLIC_NETWORK_PASSPHRASE` for other deployments.
+ */
+export const NETWORK_PASSPHRASE =
+  process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ??
+  "Test SDF Network ; September 2015";
+
+/** Human-readable label for the configured network, derived from the passphrase. */
+export const NETWORK_LABEL = NETWORK_PASSPHRASE.includes("Test")
+  ? "Testnet"
+  : NETWORK_PASSPHRASE.includes("Public")
+    ? "Mainnet"
+    : "Custom Network";
+
+/**
+ * Idle-session timeout configuration for connected wallet sessions.
+ *
+ * A wallet left connected on a shared or unattended machine is a security
+ * exposure, so the wallet layer auto-disconnects after a period of user
+ * inactivity. `IDLE_TIMEOUT_MS` is the total inactivity window before the
+ * session is reset; `IDLE_WARNING_MS` is how long before expiry the warning
+ * prompt (with a "stay connected" option) is shown. Both are overridable via
+ * environment variables for deployments that need a different policy.
+ */
+export const IDLE_TIMEOUT_MS = Number(
+  process.env.NEXT_PUBLIC_IDLE_TIMEOUT_MS ?? 15 * 60 * 1000,
+);
+
+export const IDLE_WARNING_MS = Number(
+  process.env.NEXT_PUBLIC_IDLE_WARNING_MS ?? 60 * 1000,
+);
+
+/**
+ * Priority-ordered list of Soroban RPC endpoints used for client-side
+ * selection and failover.
+ *
+ * The first entry is the preferred endpoint. `NEXT_PUBLIC_SOROBAN_RPC_URL`
+ * remains the primary configuration knob; additional endpoints can be
+ * supplied as a comma-separated list via `NEXT_PUBLIC_SOROBAN_RPC_URLS`
+ * (highest priority first). Duplicates are removed while preserving order so
+ * the same endpoint is never health-checked or selected twice.
+ */
+export const SOROBAN_RPC_URLS: string[] = (() => {
+  const primary = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL;
+  const extra = (process.env.NEXT_PUBLIC_SOROBAN_RPC_URLS ?? "")
+    .split(",")
+    .map((url) => url.trim())
+    .filter(Boolean);
+
+  const ordered = [primary, ...extra].filter(
+    (url): url is string => typeof url === "string" && url.length > 0,
+  );
+
+  return Array.from(new Set(ordered));
+})();
+
+/**
+ * Client-side failover tuning.
+ *
+ * `RPC_HEALTH_CHECK_INTERVAL_MS` is how often healthy endpoints are
+ * re-probed in the background. `RPC_FAILURE_THRESHOLD` is the number of
+ * consecutive failures before an endpoint's circuit opens. `RPC_COOLDOWN_MS`
+ * is the hysteresis window an endpoint stays out of rotation after opening,
+ * preventing rapid flapping on transient errors. `RPC_HEALTH_TIMEOUT_MS`
+ * bounds each probe so a blackholed endpoint cannot stall selection.
+ */
+export const RPC_HEALTH_CHECK_INTERVAL_MS = Number(
+  process.env.NEXT_PUBLIC_RPC_HEALTH_CHECK_INTERVAL_MS ?? 30 * 1000,
+);
+
+export const RPC_FAILURE_THRESHOLD = Number(
+  process.env.NEXT_PUBLIC_RPC_FAILURE_THRESHOLD ?? 2,
+);
+
+export const RPC_COOLDOWN_MS = Number(
+  process.env.NEXT_PUBLIC_RPC_COOLDOWN_MS ?? 60 * 1000,
+);
+
+export const RPC_HEALTH_TIMEOUT_MS = Number(
+  process.env.NEXT_PUBLIC_RPC_HEALTH_TIMEOUT_MS ?? 5 * 1000,
+);
+
+/**
  * Predefined Soroban RPC environments offered by the network switcher.
  *
  * `passphrase` is the network passphrase the endpoint is expected to report
