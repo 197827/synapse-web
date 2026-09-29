@@ -9,6 +9,7 @@ import { SorobanTip } from "@/components/ui/SorobanTip";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { useToast } from "@/components/ui/Toast";
 import { useWallet } from "@/lib/wallet/WalletProvider";
+import { useSoroban } from "@/lib/soroban/SorobanProvider";
 import { invokeContract, simulateContractCall, stringArg, structArg } from "@/lib/soroban/contract";
 import { useLiveTransactions } from "@/lib/soroban/useLiveTransactions";
 import { shortId } from "@/lib/utils";
@@ -16,7 +17,6 @@ import { AMBER, BG3, BORDER, MONO } from "@/lib/constants";
 import type { Transaction } from "@/lib/types";
 
 const RPC_URL = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ?? "https://soroban-testnet.stellar.org";
-const CONTRACT_ID = process.env.NEXT_PUBLIC_CONTRACT_ID;
 
 export function TransactionsTab() {
   const [filter, setFilter] = useState("");
@@ -26,6 +26,7 @@ export function TransactionsTab() {
   const [registering, setRegistering] = useState(false);
   const txs = useLiveTransactions();
   const { address, connect } = useWallet();
+  const { contractId } = useSoroban();
   const { toast } = useToast();
 
   async function runLookup() {
@@ -33,8 +34,8 @@ export function TransactionsTab() {
       toast("Enter a tx_id to look up", "error");
       return;
     }
-    if (!CONTRACT_ID) {
-      toast("NEXT_PUBLIC_CONTRACT_ID is not configured", "error");
+    if (!contractId) {
+      toast("No contract ID is currently selected or configured", "error");
       return;
     }
     if (!address) {
@@ -46,7 +47,7 @@ export function TransactionsTab() {
     try {
       const simulated = await simulateContractCall(
         RPC_URL,
-        CONTRACT_ID,
+        contractId,
         address,
         "get_transaction",
         [stringArg(filter.trim())]
@@ -65,8 +66,8 @@ export function TransactionsTab() {
       toast("tx_id, callback_url, and secret are all required", "error");
       return;
     }
-    if (!CONTRACT_ID) {
-      toast("NEXT_PUBLIC_CONTRACT_ID is not configured", "error");
+    if (!contractId) {
+      toast("No contract ID is currently selected or configured", "error");
       return;
     }
     if (!address) {
@@ -81,7 +82,7 @@ export function TransactionsTab() {
         callback_url: cb.callback_url.trim(),
         secret: cb.secret.trim(),
       });
-      const result = await invokeContract(RPC_URL, CONTRACT_ID, address, "register_callback", [
+      const result = await invokeContract(RPC_URL, contractId, address, "register_callback", [
         payload,
       ]);
       toast(

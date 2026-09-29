@@ -89,7 +89,7 @@ describe("AnalyticsTab", () => {
   it("shows singular form for one transaction", () => {
     mockUseLiveTransactions.mockReturnValue([makeTx()]);
     render(<AnalyticsTab />);
-    expect(screen.getByText(/1 transaction[^s]/)).toBeInTheDocument();
+    expect(screen.getByText(/1\s+transaction(?![a-z])/i)).toBeInTheDocument();
   });
 
   it("renders volume chart bars", () => {
