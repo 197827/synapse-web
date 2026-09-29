@@ -8,6 +8,7 @@ import { AnalyticsTab } from "./analytics/AnalyticsTab";
 import { NotificationCenter } from "./notifications/NotificationCenter";
 import { NotificationProvider } from "@/lib/notifications/NotificationStore";
 import { TabErrorBoundary } from "@/components/ui/TabErrorBoundary";
+import { SessionAuditPanel } from "@/components/wallet/SessionAuditPanel";
 import { ContractSwitcher } from "@/components/ui/ContractSwitcher";
 import { AMBER, BG1, BORDER, DIM, MONO, STATUS_META } from "@/lib/constants";
 import { useSorobanStatus } from "@/lib/soroban/useSorobanStatus";
@@ -108,6 +109,7 @@ export function Shell() {
               transition: "all 0.3s",
             }}
           />
+          {connected && <SessionAuditPanel />}
           <NotificationCenter />
           <button
             onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}

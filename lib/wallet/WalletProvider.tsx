@@ -1,5 +1,12 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   ensureWalletKitInitialized,
   StellarWalletsKit,
@@ -8,6 +15,22 @@ import {
   getStoredWalletId,
   isLedgerModule,
 } from "./kit";
+import {
+  signingQueue,
+  EMPTY_SIGNING_QUEUE_STATE,
+  type SigningQueueState,
+  type SigningRequest,
+} from "./signingQueue";
+
+export type QrPairingStatus = "idle" | "waiting" | "connecting" | "connected" | "failed";
+
+export type WalletMode = "signed" | "watch" | "disconnected";
+
+const STELLAR_PUBLIC_KEY_REGEX = /^G[A-Z2-7]{55}$/;
+
+export function isValidStellarAddress(value: string): boolean {
+  return STELLAR_PUBLIC_KEY_REGEX.test(value.trim());
+}
 
 const HORIZON_URL =
   process.env.NEXT_PUBLIC_HORIZON_URL ?? "https://horizon-testnet.stellar.org";
@@ -21,6 +44,11 @@ export interface WalletBalance {
 
 interface WalletContextValue {
   address: string | null;
+  provider: string | null;
+  network: string | null;
+  mode: WalletMode;
+  isWatchOnly: boolean;
+  canSign: boolean;
   connecting: boolean;
   error: string | null;
   /** True while a Ledger device is awaiting on-device confirmation. */
@@ -33,10 +61,27 @@ interface WalletContextValue {
   accountFunded: boolean;
   lowBalance: boolean;
   refreshBalance: () => Promise<void>;
+  watchAddress: (address: string) => boolean;
+  qrPairingUri: string | null;
+  qrPairingStatus: QrPairingStatus;
+  qrPairingError: string | null;
+  startQrPairing: () => Promise<void>;
+  cancelQrPairing: () => void;
+  /** Enqueue a wallet-signature request; serialized app-wide, FIFO. */
+  enqueueSigning: <T>(request: Omit<SigningRequest<T>, "id"> & { id?: string }) => Promise<T>;
+  /** Cancel all signing requests that have not started yet. */
+  cancelPendingSignings: () => number;
+  /** Current signing-queue progress ("N of M") and per-item status. */
+  signingQueueState: SigningQueueState;
 }
 
 const WalletContext = createContext<WalletContextValue>({
   address: null,
+  provider: null,
+  network: null,
+  mode: "disconnected",
+  isWatchOnly: false,
+  canSign: false,
   connecting: false,
   error: null,
   awaitingDeviceConfirmation: false,
@@ -48,6 +93,15 @@ const WalletContext = createContext<WalletContextValue>({
   accountFunded: true,
   lowBalance: false,
   refreshBalance: async () => {},
+  watchAddress: () => false,
+  qrPairingUri: null,
+  qrPairingStatus: "idle",
+  qrPairingError: null,
+  startQrPairing: async () => {},
+  cancelQrPairing: () => {},
+  enqueueSigning: () => Promise.reject(new Error("WalletProvider is not mounted")),
+  cancelPendingSignings: () => 0,
+  signingQueueState: EMPTY_SIGNING_QUEUE_STATE,
 });
 
 export function useWallet() {
@@ -66,14 +120,33 @@ function isDeviceConfirmationError(err: unknown): boolean {
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [address, setAddress] = useState<string | null>(null);
+  const [provider, setProvider] = useState<string | null>(null);
+  const [network, setNetwork] = useState<string | null>(null);
+  const [mode, setMode] = useState<WalletMode>("disconnected");
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [qrPairingUri, setQrPairingUri] = useState<string | null>(null);
+  const [qrPairingStatus, setQrPairingStatus] = useState<QrPairingStatus>("idle");
+  const [qrPairingError, setQrPairingError] = useState<string | null>(null);
+  const [signingQueueState, setSigningQueueState] = useState<SigningQueueState>(
+    EMPTY_SIGNING_QUEUE_STATE,
+  );
   const [balances, setBalances] = useState<WalletBalance[]>([]);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [balanceError, setBalanceError] = useState<string | null>(null);
   const [accountFunded, setAccountFunded] = useState(true);
   const [lastFetchedAt, setLastFetchedAt] = useState(0);
   const [awaitingDeviceConfirmation, setAwaitingDeviceConfirmation] = useState(false);
+
+  useEffect(() => signingQueue.subscribe(setSigningQueueState), []);
+
+  const enqueueSigning = useCallback(
+    <T,>(request: Omit<SigningRequest<T>, "id"> & { id?: string }) =>
+      signingQueue.enqueue<T>(request),
+    [],
+  );
+
+  const cancelPendingSignings = useCallback(() => signingQueue.cancelPending(), []);
 
   const fetchBalance = useCallback(async (account: string, force = false) => {
     if (!force && Date.now() - lastFetchedAt < BALANCE_CACHE_MS) return;
@@ -109,6 +182,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     if (address) await fetchBalance(address, true);
   }, [address, fetchBalance]);
 
+  const syncSession = useCallback(async () => {
+    const { address: currentAddress } = await StellarWalletsKit.getAddress();
+    setAddress(currentAddress);
+    setProvider(StellarWalletsKit.selectedModule?.productId ?? null);
+    setMode(currentAddress ? "signed" : "disconnected");
+    try {
+      const { network: currentNetwork } = await StellarWalletsKit.getNetwork();
+      setNetwork(currentNetwork);
+    } catch {
+      setNetwork(null);
+    }
+  }, []);
+
   useEffect(() => {
     ensureWalletKitInitialized();
     const storedWalletId = getStoredWalletId();
@@ -137,7 +223,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [syncSession]);
 
   useEffect(() => {
     if (!address) {
@@ -162,6 +248,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const { address: connectedAddress } = await StellarWalletsKit.getAddress();
       setAddress(connectedAddress);
       storeSelectedWalletId(selectedModule.productId);
+      await syncSession();
     } catch (err) {
       if (isDeviceConfirmationError(err)) {
         setError("Request rejected on your Ledger device. Please try again.");
@@ -172,7 +259,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setAwaitingDeviceConfirmation(false);
       setConnecting(false);
     }
-  }, []);
+  }, [syncSession]);
 
   const disconnect = useCallback(async () => {
     try {
@@ -182,7 +269,61 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
     clearSelectedWalletId();
     setAddress(null);
+    setProvider(null);
+    setNetwork(null);
+    setMode("disconnected");
+    setQrPairingUri(null);
+    setQrPairingStatus("idle");
+    setQrPairingError(null);
     setAwaitingDeviceConfirmation(false);
+  }, []);
+
+  const watchAddress = useCallback((nextAddress: string) => {
+    const trimmed = nextAddress.trim();
+    if (!isValidStellarAddress(trimmed)) {
+      setError("Enter a valid Stellar public key (starts with G, 56 characters).");
+      return false;
+    }
+    setError(null);
+    setAddress(trimmed);
+    setProvider(null);
+    setNetwork(null);
+    setMode("watch");
+    setQrPairingUri(null);
+    setQrPairingStatus("idle");
+    setQrPairingError(null);
+    return true;
+  }, []);
+
+  const startQrPairing = useCallback(async () => {
+    ensureWalletKitInitialized();
+    setQrPairingError(null);
+    setQrPairingStatus("waiting");
+    try {
+      const kit = StellarWalletsKit as unknown as {
+        getQrPairingUri?: () => Promise<string> | string;
+      };
+      const uri = await kit.getQrPairingUri?.();
+      if (!uri) {
+        setQrPairingStatus("failed");
+        setQrPairingError("QR pairing is not supported by the selected wallet module.");
+        return;
+      }
+      setQrPairingUri(uri);
+      setQrPairingStatus("connecting");
+      await syncSession();
+      storeSelectedWalletId(StellarWalletsKit.selectedModule.productId);
+      setQrPairingStatus("connected");
+    } catch (err) {
+      setQrPairingStatus("failed");
+      setQrPairingError(err instanceof Error ? err.message : "QR pairing failed");
+    }
+  }, [syncSession]);
+
+  const cancelQrPairing = useCallback(() => {
+    setQrPairingUri(null);
+    setQrPairingStatus("idle");
+    setQrPairingError(null);
   }, []);
 
   const nativeBalance = balances.find((b) => b.asset === "XLM");
@@ -195,6 +336,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     <WalletContext.Provider
       value={{
         address,
+        provider,
+        network,
+        mode,
+        isWatchOnly: mode === "watch",
+        canSign: mode === "signed",
         connecting,
         error,
         awaitingDeviceConfirmation,
@@ -206,6 +352,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         accountFunded,
         lowBalance,
         refreshBalance,
+        watchAddress,
+        qrPairingUri,
+        qrPairingStatus,
+        qrPairingError,
+        startQrPairing,
+        cancelQrPairing,
+        enqueueSigning,
+        cancelPendingSignings,
+        signingQueueState,
       }}
     >
       {children}
