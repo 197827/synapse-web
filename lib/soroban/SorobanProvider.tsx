@@ -160,6 +160,27 @@ export function SorobanProvider({
     };
   }, [rpcUrl, activeContractId]);
 
+  // Pause adaptive polling while the tab is hidden and resume with an
+  // immediate catch-up poll on visibility return so no events are missed.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        poller.pause();
+      } else {
+        poller.resume();
+      }
+    };
+
+    handleVisibilityChange();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [poller]);
+
   return (
     <SorobanContext.Provider
       value={{

@@ -18,12 +18,32 @@ import { shortId } from "@/lib/utils";
 type Tab = "dashboard" | "transactions" | "analytics" | "admin" | "docs";
 const TABS: Tab[] = ["dashboard", "transactions", "analytics", "admin", "docs"];
 
+type Theme = "dark" | "light";
+const THEME_STORAGE_KEY = "synapse-theme";
+
+function getPreferredTheme(): Theme {
+  if (typeof window === "undefined") return "dark";
+  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored === "dark" || stored === "light") return stored;
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
 export function Shell() {
   const [tab, setTab] = useState<Tab>("dashboard");
+  const [theme, setTheme] = useState<Theme>("dark");
   const { status: rpcStatus, lastEventAge, health: rpcHealth } = useSorobanStatus();
   const { address, connecting, error, connect, disconnect } = useWallet();
   const connected = address !== null;
   const { toast } = useToast();
+
+  useEffect(() => {
+    setTheme(getPreferredTheme());
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
 
   useEffect(() => {
     if (error) toast(error, "error");
@@ -43,7 +63,7 @@ export function Shell() {
       {/* ── Header ── */}
       <header className="shell-header">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.14em", color: "#fff" }}>
+          <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.14em", color: "var(--fg-strong)" }}>
             SYNAPSE
           </span>
           <span
@@ -57,7 +77,7 @@ export function Shell() {
               boxShadow: `0 0 8px 2px rgba(245,166,35,0.55)`,
             }}
           />
-          <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.14em", color: "#fff" }}>
+          <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.14em", color: "var(--fg-strong)" }}>
             CORE
           </span>
         </div>
@@ -81,7 +101,7 @@ export function Shell() {
               width: 8,
               height: 8,
               borderRadius: "50%",
-              background: connected ? STATUS_META.COMPLETED.color : "#444",
+              background: connected ? STATUS_META.COMPLETED.color : "var(--fg-muted)",
               display: "inline-block",
               boxShadow: connected ? `0 0 6px 2px ${STATUS_META.COMPLETED.glow}` : "none",
               transition: "all 0.3s",
@@ -89,13 +109,40 @@ export function Shell() {
           />
           <NotificationCenter />
           <button
+            onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+            aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            style={{
+              padding: "7px 12px",
+              background: "transparent",
+              border: `1px solid ${BORDER}`,
+              color: DIM,
+              fontFamily: MONO,
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: "pointer",
+              letterSpacing: "0.06em",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = AMBER;
+              e.currentTarget.style.borderColor = AMBER;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = DIM;
+              e.currentTarget.style.borderColor = BORDER;
+            }}
+          >
+            {theme === "dark" ? "☀ light" : "☾ dark"}
+          </button>
+          <button
             onClick={() => (connected ? disconnect() : connect())}
             disabled={connecting}
             style={{
               padding: "7px 18px",
               background: connected ? "transparent" : "rgba(245,166,35,0.08)",
               border: `1px solid ${connected ? BORDER : AMBER}`,
-              color: connected ? "#aaa" : AMBER,
+              color: connected ? "var(--fg-muted)" : AMBER,
               fontFamily: MONO,
               fontSize: 11,
               fontWeight: 600,
@@ -132,13 +179,13 @@ export function Shell() {
               fontFamily: MONO,
               fontSize: 11,
               letterSpacing: "0.1em",
-              color: tab === t ? "#fff" : DIM,
+              color: tab === t ? "var(--fg-strong)" : DIM,
               borderBottom: tab === t ? `2px solid ${AMBER}` : "2px solid transparent",
               marginBottom: -1,
               transition: "color 0.15s",
             }}
             onMouseEnter={(e) => {
-              if (tab !== t) e.currentTarget.style.color = "rgba(255,255,255,0.65)";
+              if (tab !== t) e.currentTarget.style.color = "var(--fg-hover)";
             }}
             onMouseLeave={(e) => {
               if (tab !== t) e.currentTarget.style.color = DIM;

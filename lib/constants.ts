@@ -2,39 +2,39 @@ import type { StatusMeta, TxStatus } from "./types";
 
 export const STATUS_META: Record<TxStatus, StatusMeta> = {
   PENDING: {
-    color: "#F5A623",
-    bg: "rgba(245,166,35,0.12)",
-    glow: "rgba(245,166,35,0.4)",
+    color: "var(--status-pending)",
+    bg: "var(--status-pending-bg)",
+    glow: "var(--status-pending-glow)",
     label: "PENDING",
   },
   PROCESSING: {
-    color: "#4FC3F7",
-    bg: "rgba(79,195,247,0.12)",
-    glow: "rgba(79,195,247,0.4)",
+    color: "var(--status-processing)",
+    bg: "var(--status-processing-bg)",
+    glow: "var(--status-processing-glow)",
     label: "PROCESSING",
   },
   COMPLETED: {
-    color: "#66BB6A",
-    bg: "rgba(102,187,106,0.12)",
-    glow: "rgba(102,187,106,0.4)",
+    color: "var(--status-completed)",
+    bg: "var(--status-completed-bg)",
+    glow: "var(--status-completed-glow)",
     label: "COMPLETED",
   },
   FAILED: {
-    color: "#EF5350",
-    bg: "rgba(239,83,80,0.12)",
-    glow: "rgba(239,83,80,0.4)",
+    color: "var(--status-failed)",
+    bg: "var(--status-failed-bg)",
+    glow: "var(--status-failed-glow)",
     label: "FAILED",
   },
 };
 
-export const AMBER = "#F5A623";
-export const NEUTRAL = "#fff";
-export const BG0 = "#0A0B0D";
-export const BG1 = "#0F1115";
-export const BG2 = "#14171D";
-export const BG3 = "#1A1E26";
-export const BORDER = "rgba(245,166,35,0.15)";
-export const DIM = "rgba(255,255,255,0.35)";
+export const AMBER = "var(--accent)";
+export const NEUTRAL = "var(--fg)";
+export const BG0 = "var(--bg-0)";
+export const BG1 = "var(--bg-1)";
+export const BG2 = "var(--bg-2)";
+export const BG3 = "var(--bg-3)";
+export const BORDER = "var(--border)";
+export const DIM = "var(--dim)";
 
 /**
  * The app's monospace stack.
