@@ -1,15 +1,23 @@
 "use client";
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { AMBER, BG2, DIM, MONO } from "@/lib/constants";
+import { toastQueue, type QueuedToast, type ToastType } from "@/lib/toast/toastQueue";
 
 export interface Toast {
   id: string;
   message: string;
-  type?: "success" | "error" | "info";
+  type?: ToastType;
+  /** Optional action button rendered inside the toast (e.g. "Stay connected"). */
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
+  /** Optional override for the auto-dismiss delay in ms. */
+  duration?: number;
 }
 
 interface ToastContextType {
-  toast: (message: string, type?: Toast["type"]) => void;
+  toast: (message: string, type?: ToastType, options?: { action?: Toast["action"]; duration?: number }) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -23,20 +31,18 @@ export function useToast() {
 }
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [toasts, setToasts] = useState<QueuedToast[]>([]);
 
-  const toast = useCallback((message: string, type: Toast["type"] = "success") => {
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, message, type }]);
+  useEffect(() => {
+    return toastQueue.subscribe(setToasts);
+  }, []);
 
-    // Auto dismiss after 3 seconds
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
+  const toast = useCallback((message: string, type: ToastType = "success") => {
+    toastQueue.push(message, type);
   }, []);
 
   const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
+    toastQueue.dismiss(id);
   }, []);
 
   return (
@@ -95,6 +101,30 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 <span style={{ color: typeColor, fontWeight: 700 }}>{icon}</span>
                 <span style={{ color: "#eee", wordBreak: "break-word" }}>{t.message}</span>
               </div>
+              {t.action && (
+                <button
+                  onClick={() => {
+                    t.action?.onClick();
+                    removeToast(t.id);
+                  }}
+                  style={{
+                    background: "none",
+                    border: `1px solid ${typeColor}77`,
+                    color: typeColor,
+                    cursor: "pointer",
+                    fontFamily: MONO,
+                    fontSize: 10,
+                    padding: "4px 8px",
+                    marginLeft: 10,
+                    whiteSpace: "nowrap",
+                    transition: "background 0.15s",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = `${typeColor}22`)}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                >
+                  {t.action.label}
+                </button>
+              )}
               <button
                 onClick={() => removeToast(t.id)}
                 aria-label="Dismiss notification"
