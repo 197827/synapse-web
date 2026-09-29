@@ -5,6 +5,8 @@ import { TransactionsTab } from "./transactions/TransactionsTab";
 import { AdminTab } from "./admin/AdminTab";
 import { DocsTab } from "./docs/DocsTab";
 import { AnalyticsTab } from "./analytics/AnalyticsTab";
+import { NotificationCenter } from "./notifications/NotificationCenter";
+import { NotificationProvider } from "@/lib/notifications/NotificationStore";
 import { TabErrorBoundary } from "@/components/ui/TabErrorBoundary";
 import { ContractSwitcher } from "@/components/ui/ContractSwitcher";
 import { AMBER, BG1, BORDER, DIM, MONO, STATUS_META } from "@/lib/constants";
@@ -36,6 +38,7 @@ export function Shell() {
   }, [address, toast]);
 
   return (
+    <NotificationProvider>
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       {/* ── Header ── */}
       <header className="shell-header">
@@ -84,6 +87,7 @@ export function Shell() {
               transition: "all 0.3s",
             }}
           />
+          <NotificationCenter />
           <button
             onClick={() => (connected ? disconnect() : connect())}
             disabled={connecting}
@@ -208,5 +212,6 @@ export function Shell() {
         </span>
       </footer>
     </div>
+    </NotificationProvider>
   );
 }
