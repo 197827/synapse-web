@@ -33,9 +33,11 @@ function getPreferredTheme(): Theme {
 export function Shell() {
   const [tab, setTab] = useState<Tab>("dashboard");
   const [theme, setTheme] = useState<Theme>("dark");
+  const [switcherOpen, setSwitcherOpen] = useState(false);
   const { status: rpcStatus, lastEventAge, health: rpcHealth } = useSorobanStatus();
-  const { address, connecting, error, connect, disconnect } = useWallet();
+  const { address, accounts, connecting, error, connect, disconnect, switchAccount } = useWallet();
   const connected = address !== null;
+  const canSwitch = connected && accounts.length > 1;
   const { toast } = useToast();
 
   useEffect(() => {
@@ -55,9 +57,15 @@ export function Shell() {
   useEffect(() => {
     if (address && !prevAddress.current) {
       toast(`Wallet connected: ${shortId(address)}`, "success");
+    } else if (address && prevAddress.current && address !== prevAddress.current) {
+      toast(`Active account: ${shortId(address)}`, "success");
     }
     prevAddress.current = address;
   }, [address, toast]);
+
+  useEffect(() => {
+    if (!canSwitch) setSwitcherOpen(false);
+  }, [canSwitch]);
 
   return (
     <NotificationProvider>
@@ -138,31 +146,109 @@ export function Shell() {
           >
             {theme === "dark" ? "☀ light" : "☾ dark"}
           </button>
-          <button
-            onClick={() => (connected ? disconnect() : connect())}
-            disabled={connecting}
-            style={{
-              padding: "7px 18px",
-              background: connected ? "transparent" : "rgba(245,166,35,0.08)",
-              border: `1px solid ${connected ? BORDER : AMBER}`,
-              color: connected ? "var(--fg-muted)" : AMBER,
-              fontFamily: MONO,
-              fontSize: 11,
-              fontWeight: 600,
-              cursor: connecting ? "wait" : "pointer",
-              letterSpacing: "0.06em",
-              transition: "all 0.2s",
-              opacity: connecting ? 0.6 : 1,
-            }}
-            onMouseEnter={(e) => {
-              if (!connected) e.currentTarget.style.background = "rgba(245,166,35,0.16)";
-            }}
-            onMouseLeave={(e) => {
-              if (!connected) e.currentTarget.style.background = "rgba(245,166,35,0.08)";
-            }}
-          >
-            {connecting ? "connecting…" : connected ? shortId(address) : "connect wallet"}
-          </button>
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => (connected ? (canSwitch ? setSwitcherOpen((o) => !o) : disconnect()) : connect())}
+              disabled={connecting}
+              aria-haspopup={canSwitch ? "listbox" : undefined}
+              aria-expanded={canSwitch ? switcherOpen : undefined}
+              style={{
+                padding: "7px 18px",
+                background: connected ? "transparent" : "rgba(245,166,35,0.08)",
+                border: `1px solid ${connected ? BORDER : AMBER}`,
+                color: connected ? "#aaa" : AMBER,
+                fontFamily: MONO,
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: connecting ? "wait" : "pointer",
+                letterSpacing: "0.06em",
+                transition: "all 0.2s",
+                opacity: connecting ? 0.6 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (!connected) e.currentTarget.style.background = "rgba(245,166,35,0.16)";
+              }}
+              onMouseLeave={(e) => {
+                if (!connected) e.currentTarget.style.background = "rgba(245,166,35,0.08)";
+              }}
+            >
+              {connecting ? "connecting…" : connected ? shortId(address) : "connect wallet"}
+              {canSwitch ? " ▾" : ""}
+            </button>
+
+            {canSwitch && switcherOpen && (
+              <div
+                role="listbox"
+                aria-label="Switch active account"
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 6px)",
+                  right: 0,
+                  minWidth: 220,
+                  background: BG1,
+                  border: `1px solid ${BORDER}`,
+                  zIndex: 20,
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                {accounts.map((acct) => {
+                  const active = acct === address;
+                  return (
+                    <button
+                      key={acct}
+                      role="option"
+                      aria-selected={active}
+                      onClick={() => {
+                        if (!active) switchAccount(acct);
+                        setSwitcherOpen(false);
+                      }}
+                      style={{
+                        padding: "9px 14px",
+                        background: active ? "rgba(245,166,35,0.08)" : "transparent",
+                        border: "none",
+                        borderBottom: `1px solid ${BORDER}`,
+                        color: active ? AMBER : "#aaa",
+                        fontFamily: MONO,
+                        fontSize: 11,
+                        textAlign: "left",
+                        cursor: "pointer",
+                        letterSpacing: "0.04em",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!active) e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!active) e.currentTarget.style.background = "transparent";
+                      }}
+                    >
+                      {active ? "● " : "○ "}
+                      {shortId(acct)}
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => {
+                    setSwitcherOpen(false);
+                    disconnect();
+                  }}
+                  style={{
+                    padding: "9px 14px",
+                    background: "transparent",
+                    border: "none",
+                    color: DIM,
+                    fontFamily: MONO,
+                    fontSize: 11,
+                    textAlign: "left",
+                    cursor: "pointer",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  disconnect
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { scValToNative } from "@stellar/stellar-sdk";
 import { Panel } from "@/components/ui/Panel";
 import { Field } from "@/components/ui/Field";
+import { AddressAutocomplete } from "@/components/ui/AddressAutocomplete";
 import { SorobanTip } from "@/components/ui/SorobanTip";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -93,13 +94,25 @@ function AdminCard({
       <Panel title={title}>
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
           {fields.map((f) => (
-            <Field
-              key={f.key}
-              label={f.label}
-              value={vals[f.key] ?? ""}
-              onChange={(v) => setVals((p) => ({ ...p, [f.key]: v }))}
-              placeholder={f.placeholder}
-            />
+            <div key={f.key}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 10,
+                  color: DIM,
+                  fontFamily: MONO,
+                  letterSpacing: "0.06em",
+                  marginBottom: 4,
+                }}
+              >
+                {f.label}
+              </label>
+              <AddressAutocomplete
+                value={vals[f.key] ?? ""}
+                onChange={(v) => setVals((p) => ({ ...p, [f.key]: v }))}
+                placeholder={f.placeholder}
+              />
+            </div>
           ))}
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -301,10 +314,15 @@ export function AdminTab() {
             color={DIM}
             onClick={() => runDiagnostic("get_admin")}
           />
+          <ActionButton
+            label="GET RELAY SIGNER"
+            color={BORDER}
+            onClick={() => runDiagnostic("get_relay_signer")}
+          />
         </div>
         <SorobanTip>
           Read-only simulations. These do not require signing and remain available in watch-only
-          mode.
+          mode. No transaction is submitted and no fees are spent.
         </SorobanTip>
       </Panel>
     </div>
